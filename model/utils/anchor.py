@@ -1,4 +1,24 @@
 import numpy as np
+import torch as t
+
+class AnchorGenerator(nn.Module):
+    def __init__(self,ratios=[0.5,1,2],anchor_scales=[8,16,32],base_size=16):
+        super().__init__()
+        self.ratios = ratios
+        self.anchor_scales= anchor_scales
+        self.base_size= base_size
+    
+    def _ratio_enum(self,ratios):
+        h = self.base_size*t.sqrt(self.ratios)
+        w = self.base_size*t.sqrt(1/t.as_tensor(self.ratios))
+        return h,w
+    
+    def generate_anchors(self,dtype=torch.float32,device="cpu"):
+        h,w = self._ratio_enum()
+
+
+
+
 def anchor_generator(ratios=[0.5,1,2],anchor_scales=[8,16,32],base_size=16):
     h,w = _ratio_enum(base_size, ratios)
     x_ctr = (base_size-1)/2
@@ -18,7 +38,7 @@ def anchor_generator(ratios=[0.5,1,2],anchor_scales=[8,16,32],base_size=16):
 
 def _ratio_enum(base_size,ratios):
     h = base_size*np.sqrt(ratios)
-    w = base_size*np.sqrt(1/np.array(ratio))
+    w = base_size*np.sqrt(1/np.array(ratios))
     return h,w
 
 
