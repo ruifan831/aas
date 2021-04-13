@@ -62,3 +62,28 @@ class AnchorGenerator(nn.Module):
         return t.as_tensor(anchors)
 
 
+
+def anchorWithOffset(anchor,offset):
+    if anchor.shape[0] == 0:
+        return t.zeros((0,4),dtype=offset.dtype)
+    heights = anchor[:,2]-anchor[:,0]
+    widths = anchor[:,3]-anchor[:,1]
+    ctr_y = anchor[:,0] +0.5*heights
+    ctr_x = anchor[:,1] + 0.5*widths
+
+    dy = offset[:,0::4]
+    dx = offset[:,1::4]
+    dh = offset[:,2::4]
+    dw = offset[:,3::4]
+
+    ctr_y = dy*heights.view(-1,1) + ctr_y.view(-1,1)
+    ctr_x = dx * widths.view(-1,1) + ctr_x.view(-1,1)
+    h = t.exp(dh)*heights.view(-1,1)
+    w = t.exp(dw)*widths.view(-1,1)
+
+    pred_bbox = t.zeros(offset.shape,dtype=offset.dtype)
+    pred_bbox[:,0::4] = ctr_y - 0.5*h
+    pred_bbox[:,1::4] = ctr_x - 0.5*h
+    pred_bbox[:,2::4] = ctr_y + 0.5*h
+    pred_bbox[:,3::4] = ctr_x + 0.5*h
+    return pred_bbox

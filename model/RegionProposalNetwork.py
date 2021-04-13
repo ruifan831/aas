@@ -1,6 +1,8 @@
 from torch import nn
 import torch.nn.functional as F
 from utils.anchor import AnchorGenerator
+from utils.creator_tool import ProposalCreator
+import torch
 
 
 class RPNHead(nn.Module):
@@ -25,8 +27,9 @@ class RegionProposalNetwork(nn.Module):
         super(RegionProposalNetwork, self).__init__()
         self.anchor_generator = rpn_anchor_generator
         self.rpn_head = head
+        self.proposal_layer = ProposalCreator(self)
 
-    def forward(self, x, img_shape):
+    def forward(self, x, img_shape, scale):
         n,_,h,w=x.shape
         anchors = self.anchor_generator(img_shape, x)
         n_anchor = anchors.shape[1]
@@ -36,5 +39,20 @@ class RegionProposalNetwork(nn.Module):
         rpn_fg_scores=rpn_softmax_scores[:,:,:,:,1].contiguous()
         rpn_score=rpn_fg_scores.view(n,-1)
         rpn_score = rpn_score.view(n,-1,2)
+
+        rois=[]
+        roi_indices=list()
+        for i in range(n):
+            roi = self.proposal_layer(
+                rpn_offset[i],
+                rpn_fg_scores[i],
+                anchors,img_shape[i],scale=scale
+            )
+            rois.append(roi)
+            batch_index= i * torch.ones((len(roi),),dtype=torch.int32)
+            roi_indices.append(batch_index)
+        rois = torch.cat(rois,dim=0)
+        roi_indices = torch.cat(roi_indices,dim=0)
+        return rpn_offset,rpn_score,rois,roi_indices, anchors
         
 
