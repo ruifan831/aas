@@ -1,8 +1,10 @@
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset,DataLoader
 import os
 import torch
 from PIL import Image
 import xml.etree.ElementTree as ET
+import torchvision.transforms as transforms
+
 VOC_BBOX_LABEL_NAMES = (
     'aeroplane',
     'bicycle',
@@ -31,7 +33,7 @@ class VOCDataset(Dataset):
         self.transform = transform
         data_path = os.path.join(root_dir,"ImageSets/Main/{0}.txt".format(split))
         with open(data_path,"r") as f:
-            self.ids = f.readlines()
+            self.ids = [i.strip() for i in f.readlines()]
     
     def __len__(self):
         return len(self.ids)
@@ -41,8 +43,8 @@ class VOCDataset(Dataset):
             idx=idx.tolist()
         idx = self.ids[idx]
         img_path = os.path.join(self.root_dir,"JPEGImages",idx+".jpg")
-        img = Image.open(img_path).convert("RGB")
-        anno = ET.parse(os.path.join(self.root_dir,"Annotations",id_+".xml"))
+        img = transforms.ToTensor()(Image.open(img_path).convert("RGB"))
+        anno = ET.parse(os.path.join(self.root_dir,"Annotations",idx+".xml"))
         bbox = list()
         label = list()
         for obj in anno.findall("object"):
