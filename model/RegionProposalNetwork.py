@@ -1,7 +1,7 @@
 from torch import nn
 import torch.nn.functional as F
-from utils.anchor import AnchorGenerator
-from utils.creator_tool import ProposalCreator
+from .utils.anchor import AnchorGenerator
+from .utils.creator_tool import ProposalCreator
 import torch
 
 
@@ -32,12 +32,13 @@ class RegionProposalNetwork(nn.Module):
     def forward(self, x, img_shape, scale):
         n,_,h,w=x.shape
         anchors = self.anchor_generator(img_shape, x)
-        n_anchor = anchors.shape[1]
+        n_anchor = anchors.shape[1]//(h*w)
         rpn_score,rpn_offset = self.rpn_head(x)
+        rpn_offset=rpn_offset.view(n,-1,4)
         rpn_score = rpn_score.permute(0,2,3,1).contiguous()
         rpn_softmax_scores = F.softmax(rpn_score.view(n,h,w,n_anchor,2),dim=4)
         rpn_fg_scores=rpn_softmax_scores[:,:,:,:,1].contiguous()
-        rpn_score=rpn_fg_scores.view(n,-1)
+        rpn_fg_scores=rpn_fg_scores.view(n,-1)
         rpn_score = rpn_score.view(n,-1,2)
 
         rois=[]
@@ -46,7 +47,7 @@ class RegionProposalNetwork(nn.Module):
             roi = self.proposal_layer(
                 rpn_offset[i],
                 rpn_fg_scores[i],
-                anchors,img_shape[i],scale=scale
+                anchors[0],img_shape[i].shape[-2:],scales=scale
             )
             rois.append(roi)
             batch_index= i * torch.ones((len(roi),),dtype=torch.int32)

@@ -1,4 +1,5 @@
 from torch import nn
+from .utils.anchor import AnchorGenerator
 
 
 class GeneralizedRCNN(nn.Module):
@@ -9,6 +10,7 @@ class GeneralizedRCNN(nn.Module):
         self.roi_heads = roi_heads
 
     def forward(self, images, targets=None):
+        original_image_sizes = []
         featureMap = self.backbone(images)
         proposals, proposal_losses = self.rpn(images, featureMap, targets)
         detections, detector_losses = self.roi_heads(
@@ -36,4 +38,4 @@ class FasterRCNN(GeneralizedRCNN):
                  if rpn_anchor_generator is None:
                      anchor_sizes = ((32,),(64,),(128,),(512))
                      aspect_ratios = ((0.5,1.0,2.0),)*len(anchor_sizes)
-                     rpn
+                     

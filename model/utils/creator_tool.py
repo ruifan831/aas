@@ -1,4 +1,4 @@
-from anchor import anchorWithOffset
+from .anchor import anchorWithOffset
 import torch
 from torchvision.ops import nms
 class ProposalCreator:
@@ -28,16 +28,19 @@ class ProposalCreator:
         min_size = self.min_size*scales
         hs = roi[:,2]-roi[:,0]
         ws = roi[:,3] - roi[:,1]
-        keep = torch.where(hs>=min_size&ws>=min_size)[0]
+        keep = torch.where((hs>=min_size)& (ws>=min_size))[0]
         roi = roi[keep,:]
+
+
         score=score[keep]
 
         order = torch.argsort(score,descending=True)
         if n_pre_nms>0:
             order = order[:n_pre_nms]
         roi= roi[order,:]
+
         score = score[order]
-        keep = nms(roi.cuda,score,self.nms_thresh)
+        keep = nms(roi,score,self.nms_thresh)
         roi = roi[keep.cpu()]
         return roi
 

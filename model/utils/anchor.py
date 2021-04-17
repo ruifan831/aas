@@ -32,12 +32,12 @@ class AnchorGenerator(nn.Module):
             assert cell_anchors is not None
             if cell_anchors[0].device == device:
                 return
-        cell_anchors=[self.generate_anchors(ratios,scales,dtype,device) for ratios,scales in zip(self.ratios,self,anchor_scales)]
+        cell_anchors=[self.generate_anchors(ratios,scales,dtype,device) for ratios,scales in zip(self.ratios,self.anchor_scales)]
         self.cell_anchors = cell_anchors
     def forward(self,imgs,feature_maps):
         # feature_map: (N,C,H,W)
         grid_sizes=[feature_map.shape[-2:] for feature_map in feature_maps] # (N,2)
-        img_size = imgs.tensors.shape[-2:] # (N，2）
+        img_size = imgs.shape[-2:] # (N，2）
         dtype,device = feature_maps[0].dtype,feature_maps[0].device
         strides= [[t.tensor(img_size[0]//g[0],dtype=t.int64,device=device),
                   t.tensor(img_size[1]//g[1],dtype=t.int64,device=device)] for g in grid_sizes]
@@ -50,22 +50,27 @@ class AnchorGenerator(nn.Module):
         for size,stride in zip(grid_sizes,strides):
             grid_height,grid_width = size
             stride_height,stride_width = stride
-            device = self.cell_anchors.device
+            device = self.cell_anchors[0].device
             shifts_y = t.arange(0,grid_height,dtype=t.float32,device=device)*stride_height
             shifts_x = t.arange(0,grid_width,dtype=t.float32,device=device)*stride_width
             shift_x,shift_y = t.meshgrid(shifts_x,shifts_y)
             shift_y = shift_y.reshape(-1)
             shift_x = shift_x.reshape(-1)
             shifts = t.stack((shift_y,shift_x,shift_y,shift_y),dim=1)
-            anchors.append((shifts.view(-1,1,4)+self.cell_anchors.view(1,-1,4)).reshape(-1,4))
+            print(shifts.shape)
+            anchors.append((shifts.view(-1,1,4)+self.cell_anchors[0].view(1,-1,4)).reshape(-1,4))
+         
         # anchors: (N,number_of_grid *9,4)
-        return t.as_tensor(anchors)
+        print(t.stack(anchors).shape)
+        return t.stack(anchors)
 
 
 
 def anchorWithOffset(anchor,offset):
+    print(anchor.shape[0]==offset.shape[0])
     if anchor.shape[0] == 0:
         return t.zeros((0,4),dtype=offset.dtype)
+    print(offset.shape)
     heights = anchor[:,2]-anchor[:,0]
     widths = anchor[:,3]-anchor[:,1]
     ctr_y = anchor[:,0] +0.5*heights
@@ -83,7 +88,7 @@ def anchorWithOffset(anchor,offset):
 
     pred_bbox = t.zeros(offset.shape,dtype=offset.dtype)
     pred_bbox[:,0::4] = ctr_y - 0.5*h
-    pred_bbox[:,1::4] = ctr_x - 0.5*h
+    pred_bbox[:,1::4] = ctr_x - 0.5*w
     pred_bbox[:,2::4] = ctr_y + 0.5*h
-    pred_bbox[:,3::4] = ctr_x + 0.5*h
+    pred_bbox[:,3::4] = ctr_x + 0.5*w
     return pred_bbox
