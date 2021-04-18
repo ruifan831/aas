@@ -16,9 +16,11 @@ class RoIHead(nn.Module):
     def forward(self,x,rois,roi_indices):
         roi_indices = totensor(roi_indice).float()
         rois = totensor(rois).float()
-        indices_and_rois = t.cat([roi_indices[:, None], rois], dim=1)
+        indices_and_rois = t.cat([roi_indices.view(-1,1), rois], dim=1)
         xy_indices_and_rois = indices_and_rois[:, [0, 2, 1, 4, 3]]
         indices_and_rois =  xy_indices_and_rois.contiguous()
+        pool = self.roi(x,indices_and_rois)
+
         return indices_and_rois,roi_indices,rois
 
 
