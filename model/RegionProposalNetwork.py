@@ -32,6 +32,7 @@ class RegionProposalNetwork(nn.Module):
     def forward(self, x, img_shape, scale):
         n,_,h,w=x.shape
         anchors = self.anchor_generator(img_shape, x)
+        print("anchors",anchors.shape)
         n_anchor = anchors.shape[1]//(h*w)
         rpn_score,rpn_offset = self.rpn_head(x)
         rpn_offset=rpn_offset.view(n,-1,4)
@@ -53,6 +54,7 @@ class RegionProposalNetwork(nn.Module):
             batch_index= i * torch.ones((len(roi),),dtype=torch.int32)
             roi_indices.append(batch_index)
         rois = torch.cat(rois,dim=0)
+        print(rois.shape)
         roi_indices = torch.cat(roi_indices,dim=0)
         return rpn_offset,rpn_score,rois,roi_indices, anchors
         

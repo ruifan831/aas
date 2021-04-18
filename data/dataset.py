@@ -44,7 +44,12 @@ class VOCDataset(Dataset):
             idx=idx.tolist()
         idx = self.ids[idx]
         img_path = os.path.join(self.root_dir,"JPEGImages",idx+".jpg")
-        img = transforms.Compose([transforms.ToTensor()])(Image.open(img_path).convert("RGB"))
+        img = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225])
+                ])(Image.open(img_path).convert("RGB"))
         anno = ET.parse(os.path.join(self.root_dir,"Annotations",idx+".xml"))
         bbox = list()
         label = list()

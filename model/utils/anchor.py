@@ -57,11 +57,9 @@ class AnchorGenerator(nn.Module):
             shift_y = shift_y.reshape(-1)
             shift_x = shift_x.reshape(-1)
             shifts = t.stack((shift_y,shift_x,shift_y,shift_y),dim=1)
-            print(shifts.shape)
             anchors.append((shifts.view(-1,1,4)+self.cell_anchors[0].view(1,-1,4)).reshape(-1,4))
          
         # anchors: (N,number_of_grid *9,4)
-        print(t.stack(anchors).shape)
         return t.stack(anchors)
 
 
