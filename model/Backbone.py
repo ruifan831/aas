@@ -26,6 +26,6 @@ def vggbackbone(pretrained = True):
         for p in layer.parameters():
             p.requires_grad = False
     backbone = Backbone(nn.Sequential(*features))
-    return backbone
+    return backbone,classifier
 
 
