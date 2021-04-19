@@ -24,6 +24,7 @@ class AnchorGenerator(nn.Module):
         hs = (anchor_scales.view(-1,1)*h.view(1,-1)).view(-1)
         ws = (anchor_scales.view(-1,1)*w.view(1,-1)).view(-1)
         base_anchor = t.stack((-hs,-ws,hs,ws),dim=1)/2
+        # [y_top,x_left,y_bottom,x_right]
         return base_anchor
     
     def set_cell_anchors(self,dtype,device):

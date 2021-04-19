@@ -1,6 +1,52 @@
 from .anchor import anchorWithOffset
 import torch
 from torchvision.ops import nms
+import numpy as np
+
+def bbox_iou(roi,bbox):
+    """
+    Args:
+        roi (numpy array):  the region of interests with shape of (M,4)
+        bbox (numpy array): the ground true bounding boxes with shape of (Number of bounding boxes in the image,4)
+    
+    Returns:
+        A numpy array with shape of (M,Number of bounding boxes in the image), each value is the iou percentage between each roi and each bounding boxes.
+    """
+    top_left_intersection = np.maximum(roi[:,None,:2],bbox[:,:2])
+    bottom_right_intersection = np.minimum(roi[:,None,2:],bbox[:,2:])
+    
+    area_i = np.prod(bottom_right_intersection-top_left_intersection,axis=2)*(top_left_intersection<bottom_right_intersection).all(axis=2)
+    area_roi = np.prod(roi[:,2:] - roi[:,:2],axis=1)
+    area_bbox = np.prod(bbox[:,2:] - bbox[:,:2],axis=1)
+    return area_i / (area_roi.reshape(-1,1)+area_bbox.reshape(1,-1)-area_i)
+
+
+def bbox2offset(roi,bbox):
+    height = roi[:,2] - roi[:,0]
+    width = roi[:,3] - roi[:,1]
+    ctr_y = roi[:,0] + 0.5*height
+    ctr_x = roi[:,1] + 0.5*width
+
+    bbox_height =bbox[:,2] - bbox[:,0]
+    bbox_width = bbox[:,3] - bbox[:,1]
+    bbox_ctr_y = bbox[:,0] + 0.5*height
+    bbox_ctr_x = bbox[:,1] + 0.5*width
+
+    dy = (bbox_ctr_y - ctr_y) / height
+    dx = (bbox_ctr_x - ctr_x) / width
+    dh = np.log(bbox_height / height)
+    dw = np.log(bbox_width / width)
+    
+    loc = np.stack((dy,dx,dh,dw),axis=1)
+    return loc
+
+
+def tonumpy(data):
+    if isinstance(data,np.ndarray):
+        return data
+    if isinstance(data,torch.Tensor):
+        return data.detach().cpu().numpy()
+
 
 class ProposalTargetCreator():
     def __init__(self,n_sample=128, pos_ratio = 0.25, pos_iou_thresh = 0.5,neg_iou_thresh_hi=0.5,neg_iou_thresh_lo =0.0):
@@ -13,11 +59,100 @@ class ProposalTargetCreator():
     def __call__(self,roi,bbox,label):
         n_bbox, _ = bbox.shape
         roi = torch.cat((roi,bbox),dim=0)
+        
 
         pos_roi_per_image = round(self.n_sample*self.pos_iou_thresh)
+        iou = bbox_iou(tonumpy(roi),tonumpy(bbox))
+        
+        # assign each roi to the bounding box with the highest iou
+        ground_truth_assignment = iou.argmax(axis=1)
+        max_iou = iou.max(axis=1)
+        print(max(ground_truth_assignment))
+        gt_roi_label = label[ground_truth_assignment]
+
+        pos_index = np.where(max_iou>self.pos_iou_thresh)[0]
+        pos_roi_for_this_image = int(min(pos_roi_per_image,pos_index.size))
+
+        if pos_index.size>0:
+            pos_index = np.random.choice(pos_index,size=pos_roi_for_this_image,replace=False)
+        
+        neg_index= np.where((max_iou<self.neg_iou_thresh_hi)&(max_iou>self.neg_iou_thresh_lo))[0]
+        neg_roi_for_this_image = self.n_sample-pos_roi_for_this_image
+        neg_roi_for_this_image = int(min(neg_roi_for_this_image,neg_index.size))
+        
+        if neg_index.size>0:
+            neg_index = np.random.choice(neg_index,size=neg_roi_for_this_image,replace=False)
+        
+        index = np.append(pos_index,neg_index)
+        ground_truth_roi_label = gt_roi_label[index]
+        ground_truth_roi_label[pos_roi_for_this_image:]=0
 
 
+        sampled_roi = roi[index]
 
+        gt_roi_offset = bbox2offset(tonumpy(sampled_roi),tonumpy(bbox[ground_truth_assignment[index]]))
+        return sampled_roi,gt_roi_offset,gt_roi_label
+
+def get_valid_index(anchor,h,w):
+    valid_index = np.where( (anchor[:0]>=0) & (anchor[:,1]>=0) & (anchor[:,2]<=h) & (anchor[:,3]<=w))[0]
+    return valid_index
+class AnchorTargetGenerator:
+    def __init__(self,n_sample=256,pos_ratio = 0.5, pos_iou_thresh = 0.7,neg_iou_thresh=0.3):
+        self.n_sample = n_sample
+        self.pos_iou_thresh = pos_iou_thresh
+        self.neg_iou_thresh = neg_iou_thresh
+        self.pos_raio = pos_ratio
+    
+    def __call__(self,bbox,anchor,img_size):
+        H,W = img_size
+        n_anchor = len(anchor)
+        valid_index = get_valid_index(anchor,H,W)
+        anchor = anchor[valid_index]
+
+        argmax_ious,label = self.create_label(valid_index,anchor,bbox)
+
+        loc = bbox2offset(anchor,bbox[argmax_ious])
+
+        label = 
+
+    def create_label(self, valid_index,anchor,bbox):
+        label = np.empty((len(valid_index)),dtype=np.int32)
+        label.fill(-1)
+
+        argmax_ious,max_ious,gt_argmax_ious = self.calc_ious(anchor,bbox,valid_index)
+
+        label[max_ious<self.neg_iou_thresh] = 0
+
+        label[gt_argmax_ious] = 1
+
+        label[max_ious>=self.pos_iou_thresh] = 1
+
+        n_pos = int(self.pos_raio * self.n_sample)
+        pos_index = np.where(label==1)[0]
+
+        if len(pos_index) > n_pos:
+            disable_index = np.random.choice(pos_index,size=(len(pos_index)-n_pos),replace=False)
+            label[disable_index] = -1
+        
+        n_neg = self.n_sample - np.sum(label==1)
+        neg_index = np.where(label == 0)[0]
+        if len(neg_index) > n_neg:
+            disable_index = np.random.choice(neg_index,size=(len(neg_index)-n_neg),replace=False)
+            label[disable_index] = -1
+        return argmax_ious, label
+
+
+    
+    def calc_ious(self,anchor,bbox,valid_index):
+        ious = bbox_iou(anchor,bbox)
+        argmax_ious = ious.argmax(axis=1)
+        max_ious = ious[np.arange(len(valid_index)),argmax_ious]
+
+        gt_argmax_ious = ious.argmax(axis=0)
+        gt_max_ious = ious[gt_argmax_ious,np.arange(ious.shape[1])]
+        gt_argmax_ious = np.where(ious == gt_max_ious)[0]
+
+        return argmax_ious,max_ious,gt_argmax_ious
 class ProposalCreator:
 
     def __init__(self,parent_model,nms_thresh=0.7,n_train_pre_nms=12000,n_train_post_nms=2000,n_test_pre_nms=6000,n_test_post_nms=300,min_size=16):
