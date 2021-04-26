@@ -47,6 +47,20 @@ def tonumpy(data):
     if isinstance(data,torch.Tensor):
         return data.detach().cpu().numpy()
 
+def _unmap(data, count, index, fill=0):
+    # Unmap a subset of item (data) back to the original set of items (of
+    # size count)
+
+    if len(data.shape) == 1:
+        ret = np.empty((count,), dtype=data.dtype)
+        ret.fill(fill)
+        ret[index] = data
+    else:
+        ret = np.empty((count,) + data.shape[1:], dtype=data.dtype)
+        ret.fill(fill)
+        ret[index, :] = data
+    return ret
+
 
 class ProposalTargetCreator():
     def __init__(self,n_sample=128, pos_ratio = 0.25, pos_iou_thresh = 0.5,neg_iou_thresh_hi=0.5,neg_iou_thresh_lo =0.0):
@@ -94,8 +108,9 @@ class ProposalTargetCreator():
         return sampled_roi,gt_roi_offset,gt_roi_label
 
 def get_valid_index(anchor,h,w):
-    valid_index = np.where( (anchor[:0]>=0) & (anchor[:,1]>=0) & (anchor[:,2]<=h) & (anchor[:,3]<=w))[0]
+    valid_index = np.where( (anchor[:,0]>=0) & (anchor[:,1]>=0) & (anchor[:,2]<=h) & (anchor[:,3]<=w))[0]
     return valid_index
+
 class AnchorTargetGenerator:
     def __init__(self,n_sample=256,pos_ratio = 0.5, pos_iou_thresh = 0.7,neg_iou_thresh=0.3):
         self.n_sample = n_sample
@@ -107,13 +122,17 @@ class AnchorTargetGenerator:
         H,W = img_size
         n_anchor = len(anchor)
         valid_index = get_valid_index(anchor,H,W)
+        print(valid_index)
         anchor = anchor[valid_index]
+        print(anchor.shape)
 
         argmax_ious,label = self.create_label(valid_index,anchor,bbox)
 
-        loc = bbox2offset(anchor,bbox[argmax_ious])
+        offset = bbox2offset(anchor,bbox[argmax_ious])
+        label = _unmap(label, n_anchor, valid_index, fill=-1)
+        offset = _unmap(offset, n_anchor, valid_index, fill=0)
+        return offset,label
 
-        label = 
 
     def create_label(self, valid_index,anchor,bbox):
         label = np.empty((len(valid_index)),dtype=np.int32)
@@ -144,10 +163,14 @@ class AnchorTargetGenerator:
 
     
     def calc_ious(self,anchor,bbox,valid_index):
-        ious = bbox_iou(anchor,bbox)
+        # ious shape: (Number of anchor, number of bbox)
+        ious = bbox_iou(tonumpy(anchor),tonumpy(bbox))
+        # argmax_ious shape: (Number of anchor,) return the bbox index that has the largest iou ratio.
         argmax_ious = ious.argmax(axis=1)
+        # max_ious shape: (Number of anchor,) the max iou ratio each anchor has.
         max_ious = ious[np.arange(len(valid_index)),argmax_ious]
 
+        
         gt_argmax_ious = ious.argmax(axis=0)
         gt_max_ious = ious[gt_argmax_ious,np.arange(ious.shape[1])]
         gt_argmax_ious = np.where(ious == gt_max_ious)[0]
