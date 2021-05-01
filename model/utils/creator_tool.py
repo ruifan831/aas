@@ -105,7 +105,7 @@ class ProposalTargetCreator():
         sampled_roi = roi[index]
 
         gt_roi_offset = bbox2offset(tonumpy(sampled_roi),tonumpy(bbox[ground_truth_assignment[index]]))
-        return sampled_roi,gt_roi_offset,gt_roi_label
+        return sampled_roi,gt_roi_offset,ground_truth_roi_label
 
 def get_valid_index(anchor,h,w):
     valid_index = np.where( (anchor[:,0]>=0) & (anchor[:,1]>=0) & (anchor[:,2]<=h) & (anchor[:,3]<=w))[0]
@@ -125,7 +125,7 @@ class AnchorTargetGenerator:
         print(valid_index)
         anchor = anchor[valid_index]
         print(anchor.shape)
-
+        print(np.where(anchor[:,1]>=anchor[:,3]))
         argmax_ious,label = self.create_label(valid_index,anchor,bbox)
 
         offset = bbox2offset(anchor,bbox[argmax_ious])

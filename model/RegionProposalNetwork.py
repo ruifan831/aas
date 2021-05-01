@@ -23,11 +23,11 @@ class RPNHead(nn.Module):
 
 
 class RegionProposalNetwork(nn.Module):
-    def __init__(self, rpn_anchor_generator, head,fg_iou_thresh, bg_iou_thresh, batch_size_per_images, positive_fraction,pre_nms_top_n, post_nms_top_n, nms_thresh, score_thresh=0.0):
+    def __init__(self, rpn_anchor_generator, head,proposal_creator_params=dict()):
         super(RegionProposalNetwork, self).__init__()
         self.anchor_generator = rpn_anchor_generator
         self.rpn_head = head
-        self.proposal_layer = ProposalCreator(self)
+        self.proposal_layer = ProposalCreator(self,**proposal_creator_params)
 
     def forward(self, x, img_shape, scale):
         n,_,h,w=x.shape

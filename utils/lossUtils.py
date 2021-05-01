@@ -1,9 +1,5 @@
-from data.dataset import VOCDataset
-from torch.utils.data import DataLoader
 import torch
-root = root = "/home/ruifanxu/Desktop/ComputerVision/Faster_RCNN/VOCdevkit/VOC2007/"
-trainData = VOCDataset(root)
-loader = DataLoader(trainData,batch_size = 1)
+
 def smooth_l1_loss(rpn_offset,offset,label):
     in_weight = torch.zeros(offset.shape)
     in_weight[(label>0).view(-1,1).expand_as(in_weight)]=1

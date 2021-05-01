@@ -15,7 +15,7 @@ class AnchorGenerator(nn.Module):
         w = self.base_size*t.sqrt(1/ratios)
         return h,w
     def num_anchors_per_location(self):
-        return [len(s) * len(a) for s, a in zip(self.sizes, self.anchor_scales)]
+        return [len(s) * len(a) for s, a in zip(self.ratios, self.anchor_scales)]
     
     def generate_anchors(self,ratios,scales,dtype=t.float32,device="cpu"):
         ratios = t.as_tensor(ratios, dtype=dtype, device=device)
@@ -57,7 +57,7 @@ class AnchorGenerator(nn.Module):
             shift_x,shift_y = t.meshgrid(shifts_x,shifts_y)
             shift_y = shift_y.reshape(-1)
             shift_x = shift_x.reshape(-1)
-            shifts = t.stack((shift_y,shift_x,shift_y,shift_y),dim=1)
+            shifts = t.stack((shift_y,shift_x,shift_y,shift_x),dim=1)
             anchors.append((shifts.view(-1,1,4)+self.cell_anchors[0].view(1,-1,4)).reshape(-1,4))
          
         # anchors: (N,number_of_grid *9,4)
