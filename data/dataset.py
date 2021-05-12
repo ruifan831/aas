@@ -62,6 +62,7 @@ class VOCDataset(Dataset):
         target["boxes"] = torch.as_tensor(bbox,dtype = torch.float32)
         target["labels"] = torch.as_tensor(label,dtype = torch.int64)
         target["image_id"] = idx
+        target["origin_size"] = (img.shape[1],img.shape[1])
         if self.transform is not None:
             img,target = self.transform((img,target))
         return img, target
@@ -78,6 +79,7 @@ class Transform:
         _,o_H,o_W = img.shape
         scale = o_H/H
         target["boxes"] = resize_bbox(target["boxes"],(H,W),(o_H,o_W))
+        target['scale'] = H/o_H
         return img,target
 
 def resize_bbox(bbox,in_size,out_size):

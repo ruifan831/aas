@@ -58,6 +58,7 @@ class AnchorGenerator(nn.Module):
             shift_y = shift_y.reshape(-1)
             shift_x = shift_x.reshape(-1)
             shifts = t.stack((shift_y,shift_x,shift_y,shift_x),dim=1)
+            # (Grid Size, Number of Anchors, 4)
             anchors.append((shifts.view(-1,1,4)+self.cell_anchors[0].view(1,-1,4)).reshape(-1,4))
          
         # anchors: (N,number_of_grid *9,4)
@@ -66,10 +67,8 @@ class AnchorGenerator(nn.Module):
 
 
 def anchorWithOffset(anchor,offset):
-    print(anchor.shape[0]==offset.shape[0])
     if anchor.shape[0] == 0:
         return t.zeros((0,4),dtype=offset.dtype)
-    print(offset.shape)
     heights = anchor[:,2]-anchor[:,0]
     widths = anchor[:,3]-anchor[:,1]
     ctr_y = anchor[:,0] +0.5*heights

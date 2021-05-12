@@ -4,6 +4,8 @@ import torch.nn.functional as F
 from model.utils.creator_tool import ProposalCreator,ProposalTargetCreator,AnchorTargetGenerator
 import torch
 
+import time
+
 def smooth_l1_loss(rpn_offset,offset,label):
     in_weight = torch.zeros(offset.shape)
     in_weight[(label>0).view(-1,1).expand_as(in_weight)]=1
@@ -68,4 +70,25 @@ class FasterRCNNTrainer(nn.Module):
         losses[-1].backward()
         self.optimizer.step()
         return losses
+    
+
+    def save(self,save_path=None):
+        if save_path is None:
+            timestr = time.strftime("%Y_%m_%d_%H_%M")
+            save_path = f"checkpoints/faster_rcnn_{timestr}"
+        
+        save_dir = os.path.dirname(save_path)
+        if not os.exists(save_dir):
+            os.makedirs(save_dir)
+        save_dict=dict()
+        save_dict["model"] = self.faster_rcnn.state_dict()
+        torch.save(save_dict,save_path)
+        return save_path
+    
+    def load(self,path):
+        checkpoint = torch.load(path)
+        if "model" in checkpoint:
+            self.faster_rcnn.load_state_dict(checkpoint["model"])
+        return self
+
 

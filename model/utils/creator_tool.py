@@ -2,6 +2,7 @@ from .anchor import anchorWithOffset
 import torch
 from torchvision.ops import nms
 import numpy as np
+from utils import arrayUtils
 
 def bbox_iou(roi,bbox):
     """
@@ -19,6 +20,30 @@ def bbox_iou(roi,bbox):
     area_roi = np.prod(roi[:,2:] - roi[:,:2],axis=1)
     area_bbox = np.prod(bbox[:,2:] - bbox[:,:2],axis=1)
     return area_i / (area_roi.reshape(-1,1)+area_bbox.reshape(1,-1)-area_i)
+
+def offset2bbox(roi,offset):
+    height = roi[:,2] - roi[:,0]
+    width = roi[:,3] - roi[:,1]
+    ctr_y = roi[:,0]+0.5*height
+    ctr_x = roi[:,1]+0.5*width
+    
+    dy = offset[:,0]
+    dx = offset[:,1]
+    dh = offset[:,2]
+    dw = offset[:,3]
+
+    y = dy*height + ctr_y
+    x = dx*width + ctr_x
+    h = np.exp(dh)*height
+    w = np.exp(dw)*width
+
+    result = np.zeros(offset.shape,dtype = offset.dtype)
+    result[:,0] = y - 0.5*h
+    result[:,1] = x - 0.5*w
+    result[:,2] = y + 0.5*h
+    result[:,3] = x + 0.5*w
+    return result
+
 
 
 def bbox2offset(roi,bbox):
@@ -41,11 +66,7 @@ def bbox2offset(roi,bbox):
     return loc
 
 
-def tonumpy(data):
-    if isinstance(data,np.ndarray):
-        return data
-    if isinstance(data,torch.Tensor):
-        return data.detach().cpu().numpy()
+
 
 def _unmap(data, count, index, fill=0):
     # Unmap a subset of item (data) back to the original set of items (of
@@ -76,12 +97,11 @@ class ProposalTargetCreator():
         
 
         pos_roi_per_image = round(self.n_sample*self.pos_iou_thresh)
-        iou = bbox_iou(tonumpy(roi),tonumpy(bbox))
+        iou = bbox_iou(arrayUtils.tonumpy(roi),arrayUtils.tonumpy(bbox))
         
         # assign each roi to the bounding box with the highest iou
         ground_truth_assignment = iou.argmax(axis=1)
         max_iou = iou.max(axis=1)
-        print(max(ground_truth_assignment))
         gt_roi_label = label[ground_truth_assignment]
 
         pos_index = np.where(max_iou>self.pos_iou_thresh)[0]
@@ -104,7 +124,7 @@ class ProposalTargetCreator():
 
         sampled_roi = roi[index]
 
-        gt_roi_offset = bbox2offset(tonumpy(sampled_roi),tonumpy(bbox[ground_truth_assignment[index]]))
+        gt_roi_offset = bbox2offset(arrayUtils.tonumpy(sampled_roi),arrayUtils.tonumpy(bbox[ground_truth_assignment[index]]))
         return sampled_roi,gt_roi_offset,ground_truth_roi_label
 
 def get_valid_index(anchor,h,w):
@@ -122,10 +142,7 @@ class AnchorTargetGenerator:
         H,W = img_size
         n_anchor = len(anchor)
         valid_index = get_valid_index(anchor,H,W)
-        print(valid_index)
         anchor = anchor[valid_index]
-        print(anchor.shape)
-        print(np.where(anchor[:,1]>=anchor[:,3]))
         argmax_ious,label = self.create_label(valid_index,anchor,bbox)
 
         offset = bbox2offset(anchor,bbox[argmax_ious])
@@ -164,7 +181,7 @@ class AnchorTargetGenerator:
     
     def calc_ious(self,anchor,bbox,valid_index):
         # ious shape: (Number of anchor, number of bbox)
-        ious = bbox_iou(tonumpy(anchor),tonumpy(bbox))
+        ious = bbox_iou(arrayUtils.tonumpy(anchor),arrayUtils.tonumpy(bbox))
         # argmax_ious shape: (Number of anchor,) return the bbox index that has the largest iou ratio.
         argmax_ious = ious.argmax(axis=1)
         # max_ious shape: (Number of anchor,) the max iou ratio each anchor has.
@@ -194,6 +211,8 @@ class ProposalCreator:
         else:
             n_pre_nms = self.n_test_pre_nms
             n_post_nms = self.n_test_post_nms
+        print(f"ProposalCreator|n_pre_nms:{n_pre_nms}\nProposalCreator|n_post_nms:{n_post_nms}")
+
         
         # transform the anchor via offset output by RPNHead and clip bboxes to image
         roi = anchorWithOffset(anchor,offset)
@@ -205,10 +224,7 @@ class ProposalCreator:
         ws = roi[:,3] - roi[:,1]
         keep = torch.where((hs>=min_size)& (ws>=min_size))[0]
         roi = roi[keep,:]
-
-
         score=score[keep]
-
         order = torch.argsort(score,descending=True)
         if n_pre_nms>0:
             order = order[:n_pre_nms]

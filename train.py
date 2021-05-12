@@ -1,14 +1,32 @@
-from data.dataset import VOCDataset
+from data.dataset import VOCDataset,Transform
 from torch.utils.data import DataLoader
 import torch
-root = root = "/home/ruifanxu/Desktop/ComputerVision/Faster_RCNN/VOCdevkit/VOC2007/"
-trainData = VOCDataset(root)
-loader = DataLoader(trainData,batch_size = 1)
-def smooth_l1_loss(rpn_offset,offset,label):
-    in_weight = torch.zeros(offset.shape)
-    in_weight[(label>0).view(-1,1).expand_as(in_weight)]=1
-    differences = (offset-rpn_offset)*in_weight
-    abs_differences = differences.abs()
-    flag = (abs_differences<1).float()
-    y = flag*(abs_differences**2)+(1-flag)*(abs_differences-0.5)
-    return y.sum()
+from trainer import FasterRCNNTrainer
+from model.GeneralizedRCNN import FasterRCNN_vgg16
+from tqdm import tqdm
+import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
+from PIL import Image
+root="../VOCdevkit/VOC2007/"
+
+
+def train():
+    dataset = VOCDataset(root,transform = Transform())
+    print("Loading Data")
+    dataLoader = DataLoader(dataset,batch_size=1,shuffle=True)
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    rcnn = FasterRCNN_vgg16(num_classes=21)
+    print("Model Constructed")
+    trainer = FasterRCNNTrainer(rcnn).to(device)
+    for epoch in range(10):
+        for i,(img,target) in tqdm(enumerate(dataLoader)):
+            img = img.to(device)
+            losses = trainer.train_step(img,target)
+            print(f"RPN OFFSET LOSSES: {losses[0]}  |RPN CLASSIFICATION LOSS: {losses[1]}\nROI OFFSET LOSSES: {losses[2]}  |ROI CLASSIFICATION LOSS: {losses[3]}")
+                
+
+
+if __name__ == '__main__':
+    train()
+
+
